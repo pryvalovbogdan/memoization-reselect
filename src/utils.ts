@@ -1,21 +1,17 @@
 interface MemoizedFunction extends Function {
-  (param: string): any;
+  (param: any): any;
   cache: {
     [key: string]: any;
   };
 }
 
-declare global {
-  interface Window {
-    memoizationExample: any;
-  }
-}
-
-export const memoizationExample = function (param: string) {
+export const memoizationExample = function (param: any) {
+  // Checking is result already calculated for same entry
   if (!memoizationExample.cache[param]) {
     console.log('not cached');
-    const res = { some: param };
+    const res = { data: param + 5 }; // Some heavy operations
 
+    // Adding calculated result to cache
     memoizationExample.cache[param] = res;
   }
 
@@ -26,40 +22,62 @@ export const memoizationExample = function (param: string) {
 
 memoizationExample.cache = {};
 
-// Same example Using Map
+let resDef = memoizationExample(11); // First call calculating data
+let resDef2 = memoizationExample(11); // Second call will get data from cache
+
+console.log(resDef, resDef2, memoizationExample.cache);
+// { data: 16 }, { data: 16 }, { "11": { "data": 16 } }
+
 const cacheMap: Map<any, any> = new Map();
+const cacheWeakMap: WeakMap<Object, any> = new WeakMap();
 
 export const memoizationMap = (data: any) => {
-  if (!cacheMap.has(data)) {
-    let res = data; // Big data calculation
+  // Checking is result already calculated for same entry
+  if (typeof data === 'object') {
+    if (!cacheWeakMap.has(data)) {
+      console.log('not cached WeakMap');
+      let res = data.value + 5; // Some heavy operations
 
-    cacheMap.set(data, res);
+      // Adding calculated result to cache
+      cacheWeakMap.set(data, res);
+    }
+
+    console.log('outside WeakMap');
+
+    return cacheWeakMap.get(data);
+  } else {
+    if (!cacheMap.has(data)) {
+      console.log('not cached Map');
+      let res = data + 5; // Some heavy operations
+
+      // Adding calculated result to cache
+      cacheMap.set(data, res);
+    }
+
+    console.log('outside Map');
+
+    return cacheMap.get(data);
   }
-
-  return cacheMap.get(data);
 };
 
-let data: Object | null = { some: '' };
+let data: number | null = 4;
 
 let res1 = memoizationMap(data);
 let res2 = memoizationMap(data); // data from cache
 
-// .removing link to obj
-data = null;
-
 console.log(res1, res2, cacheMap.size); // 1 obj still saved in cache
-//dissadvanteges of Map insted of WeakMap that we need to clean cache from unused obj by hands
+// dissadvanteges of Map insted of WeakMap that we need to clean cache from unused obj by hands
 // in weak map keys could be only objects linked types not primitives
-let cacheWeakMap: WeakMap<Object, any> = new WeakMap();
 
-console.log(cacheWeakMap);
 type EqualityType = (a: any, b: any) => boolean;
-
+// Ussual compearing
 export const defaultEqualityCheck: EqualityType = (a, b) => {
   return a === b;
 };
 
+// Deep compearing arguments
 function areArgumentsShallowlyEqual(equalityCheck: EqualityType, prev: any, next: any) {
+  // If either arguments is null, or if their lengths aren't the same, they aren't equal
   if (prev === null || next === null || prev.length !== next.length) {
     return false;
   }
@@ -75,15 +93,17 @@ function areArgumentsShallowlyEqual(equalityCheck: EqualityType, prev: any, next
   return true;
 }
 
-function createSelector(...funcs: any[]) {
+function createSelector(...funcs: any[]): (state: { numbers: number[]; strings: string[] }) => any {
   let lastArgs: any = null;
   let lastResult: any = null;
 
   return function () {
+    // Checking is result already calculated for same entry
     if (!areArgumentsShallowlyEqual(defaultEqualityCheck, lastArgs, arguments)) {
       console.log('not cached selector');
-      const resultFunc = funcs.pop();
+      const resultFunc = funcs.pop(); //This is the function that calculates the result
 
+      // Getting data fom selectors and paste data as props inside resultFunc
       lastResult = resultFunc(...funcs.map(func => func.apply(null, arguments)));
       lastArgs = arguments;
     }
@@ -104,8 +124,8 @@ const getNumbers = (state: { numbers: number[] }) => state.numbers;
 
 const getSum = createSelector(getNumbers, (numbers: any[]) => numbers.reduce((a, b) => a + b, 0));
 
-console.log(getSum(stateStore)); // calculates and logs 15
-console.log(getSum(stateStore)); // returns memoized 15
+console.log(getSum(stateStore));
+console.log(getSum(stateStore)); // cache 15
 
 function createSelectorMap(...funcs: any[]) {
   let memoizedResults: Map<any, any> = new Map();
